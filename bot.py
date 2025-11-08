@@ -799,13 +799,22 @@ if __name__ == "__main__":
     async def main():
         async with bot:
             await start_health_server()
+            # Add delay to avoid rate limits on startup
+            await asyncio.sleep(5)
             await bot.start(TOKEN)
     
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
+    except discord.errors.HTTPException as e:
+        if e.status == 429:
+            logger.error("Rate limited on startup. Waiting 60 seconds before retry...")
+            import time
+            time.sleep(60)
+        else:
+            logger.error(f"Fatal error: {e}")
+            sys.exit(1)
     except Exception as e:
         logger.error(f"Fatal error: {e}")
         sys.exit(1)
-
