@@ -37,19 +37,19 @@ TIER_ROLES = {
 }
 
 TIER_NAMES = {
-    'trial': 'Beginner Middleman',
-    'middleman': 'Advanced Middleman',
-    'pro': 'Middleman',
-    'head': 'Head Middleman',
+    'trial': '<100m/s',
+    'middleman': '100-250m/s',
+    'pro': '250-500m/s',
+    'head': '500+m/s',
     'owner': 'Owner'
 }
 
 TIER_LIMITS = {
-    'trial': 'Up to 2k Robux (No Fee)',
-    'middleman': 'Up to 6k Robux (No Fee)',
-    'pro': 'Up to 10k Robux (No Fee)',
-    'head': 'Up to 20k Robux (No Fee)',
-    'owner': '20k+ Robux (Fee: 100 Robux or 20M Brainrot)'
+    'trial': 'Trades under 100M',
+    'middleman': 'Trades 100M-250M',
+    'pro': 'Trades 250M-500M',
+    'head': 'Trades over 500M',
+    'owner': 'Owner to MM (fee)'
 }
 
 intents = discord.Intents.default()
@@ -263,13 +263,13 @@ class TierSelectView(discord.ui.View):
         super().__init__(timeout=300)
     
     @discord.ui.select(
-        placeholder="Select middleman tier based on your trade value",
+        placeholder="Select tier based on your trade value",
         options=[
-            discord.SelectOption(label="Beginner Middleman", value="trial", description="Up to 2k Robux (No Fee)", emoji="🌱"),
-            discord.SelectOption(label="Advanced Middleman", value="middleman", description="Up to 6k Robux (No Fee)", emoji="💼"),
-            discord.SelectOption(label="Middleman", value="pro", description="Up to 10k Robux (No Fee)", emoji="⚡"),
-            discord.SelectOption(label="Head Middleman", value="head", description="Up to 20k Robux (No Fee)", emoji="👑"),
-            discord.SelectOption(label="Owner", value="owner", description="20k+ Robux (Fee: 100 Robux/20M Brainrot)", emoji="💎")
+            discord.SelectOption(label="<100m/s", value="trial", description="Trades under 100M"),
+            discord.SelectOption(label="100-250m/s", value="middleman", description="Trades 100M-250M"),
+            discord.SelectOption(label="250-500m/s", value="pro", description="Trades 250M-500M"),
+            discord.SelectOption(label="500+m/s", value="head", description="Trades over 500M"),
+            discord.SelectOption(label="Owner", value="owner", description="Owner to MM (fee)")
         ]
     )
     async def tier_select_callback(self, interaction: discord.Interaction, select: discord.ui.Select):
@@ -322,14 +322,14 @@ class TradeDetailsModal(discord.ui.Modal, title="Fill out the Format"):
             channel = await safe_discord_request(category.create_text_channel(name=f"mm-{self.tier}-{ticket_counter}", overwrites=overwrites))
             
             ticket_id = await db.create_ticket(channel.id, interaction.user.id, str(self.trader.value), str(self.giving.value), str(self.receiving.value), self.tier)
-            embed = discord.Embed(title="Middleman Request", color=discord.Color.blue(), timestamp=datetime.utcnow())
+            embed = discord.Embed(title="Middleman Request", color=0x2B2D31, timestamp=datetime.utcnow())
             embed.add_field(name="Requester", value=interaction.user.mention, inline=True)
             embed.add_field(name="Trader", value=f"{self.trader.value}", inline=True)
-            embed.add_field(name="Tier", value=f"{TIER_NAMES.get(self.tier, self.tier.title())}\n*{TIER_LIMITS.get(self.tier)}*", inline=False)
+            embed.add_field(name="Tier", value=f"{TIER_NAMES.get(self.tier, self.tier.title())}\n{TIER_LIMITS.get(self.tier)}", inline=False)
             embed.add_field(name=f"{interaction.user.display_name} is giving", value=f"{self.giving.value}", inline=False)
             embed.add_field(name="Other trader is giving", value=f"{self.receiving.value}", inline=False)
             if self.tier == 'owner':
-                embed.add_field(name="⚠ Important", value="This trade requires a middleman fee payment before processing.\nPlease wait for the Owner to provide payment details.", inline=False)
+                embed.add_field(name="Important", value="This trade requires a middleman fee payment before processing.\nPlease wait for the Owner to provide payment details.", inline=False)
             embed.set_footer(text=f"Ticket #{ticket_counter}")
             view = TicketActionsView()
             role_id = TIER_ROLES.get(self.tier)
@@ -338,8 +338,8 @@ class TradeDetailsModal(discord.ui.Modal, title="Fill out the Format"):
             await safe_send_message(channel, content=f"{role_mention}", embed=embed, view=view)
             
             review_embed = discord.Embed(
-                description="⭐ Vouching and rating the middleman after trade is strictly necessary\nCopy the middleman user ID and paste it in 'submit a review'",
-                color=discord.Color.gold()
+                description="Vouching and rating the MM after trade is required\nCopy MM user ID and paste in 'submit a review'",
+                color=0x2B2D31
             )
             await safe_send_message(channel, embed=review_embed)
             
@@ -392,13 +392,13 @@ class TicketActionsView(discord.ui.View):
             return
         
         await db.claim_ticket(interaction.channel.id, interaction.user.id)
-        claim_embed = discord.Embed(description=f"✅ @{interaction.user.name} will be your middleman", color=discord.Color.green())
+        claim_embed = discord.Embed(description=f"{interaction.user.name} will be your middleman", color=0x2B2D31)
         requester = await get_member_cached(interaction.guild, ticket['requester_id'])
         requester_mention = requester.mention if requester else f"<@{ticket['requester_id']}>"
         trader_text = ticket['trader_username']
         claim_embed.add_field(name="Participants", value=f"{requester_mention} {trader_text}", inline=False)
         if ticket['tier'] == 'owner':
-            claim_embed.add_field(name="💰 Fee Payment Required", value="Please ensure the middleman fee is paid before proceeding with the trade.", inline=False)
+            claim_embed.add_field(name="Fee Payment Required", value="Please ensure the middleman fee is paid before proceeding with the trade.", inline=False)
         
         await safe_interaction_response(interaction, embed=claim_embed)
         
@@ -435,7 +435,19 @@ async def setup(interaction: discord.Interaction):
         await safe_interaction_response(interaction, "❌ You need Administrator permissions to use this command.", ephemeral=True)
         return
     
-    embed = discord.Embed(title="🛡 Middleman Services", description=("Click the button below to request a middleman for your trade.\n\nAvailable Tiers:\n🌱 Beginner Middleman - Up to 2k Robux (No Fee)\n💼 Advanced Middleman - Up to 6k Robux (No Fee)\n⚡ Middleman - Up to 10k Robux (No Fee)\n👑 Head Middleman - Up to 20k Robux (No Fee)\n💎 Owner - 20k+ Robux (Fee: 100 Robux or 20M Brainrot)\n\nSelect the appropriate tier based on your trade value."), color=discord.Color.blue())
+    embed = discord.Embed(
+        title="Middleman Services",
+        description=(
+            "Click the button below to request a middleman for your trade.\n\n"
+            "**Available Tiers:**\n"
+            "1. <100m/s - Trades under 100M\n"
+            "2. 100-250m/s - Trades 100M-250M\n"
+            "3. 250-500m/s - Trades 250M-500M\n"
+            "4. 500+m/s - Trades over 500M\n"
+            "5. Owner - Owner to MM (fee)"
+        ),
+        color=0x2B2D31
+    )
     view = CreateTicketView()
     
     await safe_send_message(interaction.channel, embed=embed, view=view)
@@ -694,7 +706,17 @@ async def help_command(interaction: discord.Interaction):
     if has_middleman_role(interaction.user):
         embed.add_field(name="Middleman Commands", value=("/proof - Mark trade as complete and send proof\n/close - Close the current ticket\n/add - Add a user to the ticket\n/remove - Remove a user from the ticket"), inline=False)
     embed.add_field(name="User Commands", value=("Click the Create Middleman Ticket button to start a trade\nSelect your tier based on trade value\nFill out the required information"), inline=False)
-    embed.add_field(name="Tier Information", value=("🌱 Beginner Middleman - Up to 2k Robux (No Fee)\n💼 Advanced Middleman - Up to 6k Robux (No Fee)\n⚡ Middleman - Up to 10k Robux (No Fee)\n👑 Head Middleman - Up to 20k Robux (No Fee)\n💎 Owner - 20k+ Robux (Fee: 100 Robux or 20M Brainrot)"), inline=False)
+    embed.add_field(
+        name="Tier Information",
+        value=(
+            "1. <100m/s - Trades under 100M\n"
+            "2. 100-250m/s - Trades 100M-250M\n"
+            "3. 250-500m/s - Trades 250M-500M\n"
+            "4. 500+m/s - Trades over 500M\n"
+            "5. Owner - Owner to MM (fee)"
+        ),
+        inline=False
+    )
     embed.set_footer(text="For support, contact an administrator")
     await safe_interaction_response(interaction, embed=embed, ephemeral=True)
 
